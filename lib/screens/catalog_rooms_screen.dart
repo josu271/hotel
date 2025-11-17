@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../cart_provider.dart';
+import 'login_screen.dart';
 
 class CatalogRoomsScreen extends StatefulWidget {
   const CatalogRoomsScreen({super.key});
@@ -59,7 +63,43 @@ class _CatalogRoomsScreenState extends State<CatalogRoomsScreen> {
     }
   }
 
-  void _showRoomDetail(Map<String, dynamic> room) {
+  void _addToCart(BuildContext context, Map<String, dynamic> room) {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final user = FirebaseAuth.instance.currentUser;
+
+    // Si no está logueado, redirigir al login
+    if (user == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+      return;
+    }
+
+    final cartItem = CartItem(
+      id: room['id'],
+      name: room['Nombre'],
+      price: (room['Precio'] as num).toDouble(),
+      quantity: 1,
+      type: 'habitacion',
+      imageUrl: room['Url_image'] ?? '',
+      details: {
+        'numero': room['Numero'],
+        'descripcion': room['Descripcion'],
+      },
+    );
+
+    cartProvider.addItem(cartItem);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${room['Nombre']} agregado al carrito'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showRoomDetail(BuildContext context, Map<String, dynamic> room) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -90,7 +130,7 @@ class _CatalogRoomsScreenState extends State<CatalogRoomsScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              // Agregar al carrito
+              _addToCart(context, room);
               Navigator.pop(context);
             },
             child: const Text('Agregar al Carrito'),
@@ -138,8 +178,11 @@ class _CatalogRoomsScreenState extends State<CatalogRoomsScreen> {
                           ),
                           title: Text(room['Nombre']),
                           subtitle: Text('S/ ${room['Precio']} por noche'),
-                          trailing: const Icon(Icons.arrow_forward_ios),
-                          onTap: () => _showRoomDetail(room),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.add_shopping_cart),
+                            onPressed: () => _addToCart(context, room),
+                          ),
+                          onTap: () => _showRoomDetail(context, room),
                         ),
                       );
                     },

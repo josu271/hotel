@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'catalog_rooms_screen.dart';
 import 'catalog_products_screen.dart';
 import 'location_screen.dart';
@@ -7,6 +8,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'admin_screen.dart';
 import 'cart_screen.dart';
+import '../cart_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userRole;
@@ -27,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const LoginScreen();
     }
 
-    // 👇 USAMOS EL ROL QUE VIENE DEL LOGIN O DEL MAIN
+    final cartProvider = Provider.of<CartProvider>(context);
     final bool isEmpleado = widget.userRole == 'Empleado';
 
     final List<Widget> _screens = isEmpleado
@@ -49,14 +51,42 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('HOTEL ANDINO'),
         backgroundColor: const Color(0xFF8B4513),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CartScreen()),
-              );
-            },
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CartScreen()),
+                  );
+                },
+              ),
+              if (cartProvider.totalItems > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      cartProvider.totalItems.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

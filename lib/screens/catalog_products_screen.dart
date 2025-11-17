@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../cart_provider.dart';
+import 'login_screen.dart';
 
 class CatalogProductsScreen extends StatefulWidget {
   const CatalogProductsScreen({super.key});
 
   @override
   State<CatalogProductsScreen> createState() => _CatalogProductsScreenState();
+  
 }
 
 class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
@@ -38,6 +43,7 @@ class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
       print('Error al obtener productos: $e');
     }
   }
+  
 
   List<Map<String, dynamic>> get _filteredProducts {
     var filtered = products;
@@ -68,7 +74,44 @@ class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
     }
   }
 
-  void _showProductDetail(Map<String, dynamic> product) {
+  void _addToCart(BuildContext context, Map<String, dynamic> product) {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final user = FirebaseAuth.instance.currentUser;
+
+    // Si no está logueado, redirigir al login
+    if (user == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+      return;
+    }
+
+    final cartItem = CartItem(
+      id: product['id'],
+      name: product['Nombre'],
+      price: (product['Precio'] as num).toDouble(),
+      quantity: 1,
+      type: 'producto',
+      imageUrl: product['Url_image'] ?? '',
+      details: {
+        'categoria': product['Categoria'],
+        'stock': product['Stock'],
+      },
+    );
+
+    cartProvider.addItem(cartItem);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${product['Nombre']} agregado al carrito'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+  
+
+  void _showProductDetail(BuildContext context, Map<String, dynamic> product) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -99,7 +142,7 @@ class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              // Agregar al carrito
+              _addToCart(context, product);
               Navigator.pop(context);
             },
             child: const Text('Agregar al Carrito'),
@@ -163,7 +206,7 @@ class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
                       
                       return Card(
                         child: InkWell(
-                          onTap: () => _showProductDetail(product),
+                          onTap: () => _showProductDetail(context, product),
                           child: Column(
                             children: [
                               Expanded(
@@ -186,6 +229,10 @@ class _CatalogProductsScreenState extends State<CatalogProductsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text('S/ ${product['Precio']}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add_shopping_cart),
+                                      onPressed: () => _addToCart(context, product),
+                                    ),
                                   ],
                                 ),
                               ),
