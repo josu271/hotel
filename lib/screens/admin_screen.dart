@@ -31,6 +31,18 @@ class AdminScreen extends StatelessWidget {
   }
 }
 
+// Función para convertir enlace de Drive a enlace directo
+String convertirEnlaceDriveADirecto(String enlaceDrive) {
+  final regExp = RegExp(r'/d/([a-zA-Z0-9_-]+)');
+  final match = regExp.firstMatch(enlaceDrive);
+  if (match != null && match.groupCount >= 1) {
+    final id = match.group(1);
+    return 'https://drive.google.com/uc?export=view&id=$id';
+  } else {
+    return enlaceDrive;
+  }
+}
+
 // Pantalla para gestionar habitaciones
 class RoomsManagementScreen extends StatefulWidget {
   const RoomsManagementScreen({super.key});
@@ -113,17 +125,21 @@ class _RoomsManagementScreenState extends State<RoomsManagementScreen> {
                   itemCount: _rooms.length,
                   itemBuilder: (context, index) {
                     final room = _rooms[index];
+                    final urlImagenDirecta = convertirEnlaceDriveADirecto(room['Url_image'] ?? '');
+                    
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: ListTile(
-                        leading: Image.network(
-                          room['Url_image'] ?? '',
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.hotel, size: 40),
-                        ),
+                        leading: room['Url_image']?.isNotEmpty == true
+                            ? Image.network(
+                                urlImagenDirecta,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.hotel, size: 40),
+                              )
+                            : const Icon(Icons.hotel, size: 40),
                         title: Text(room['Nombre']),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,17 +275,21 @@ class _ProductsManagementScreenState extends State<ProductsManagementScreen> {
                   itemCount: _products.length,
                   itemBuilder: (context, index) {
                     final product = _products[index];
+                    final urlImagenDirecta = convertirEnlaceDriveADirecto(product['Url_image'] ?? '');
+                    
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: ListTile(
-                        leading: Image.network(
-                          product['Url_image'] ?? '',
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.shopping_bag, size: 40),
-                        ),
+                        leading: product['Url_image']?.isNotEmpty == true
+                            ? Image.network(
+                                urlImagenDirecta,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.shopping_bag, size: 40),
+                              )
+                            : const Icon(Icons.shopping_bag, size: 40),
                         title: Text(product['Nombre']),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,6 +367,7 @@ class _RoomFormDialogState extends State<RoomFormDialog> {
   final _numberController = TextEditingController();
   final _imageController = TextEditingController();
   bool _disponibilidad = true;
+  File? _selectedImage;
 
   @override
   void initState() {
@@ -369,6 +390,76 @@ class _RoomFormDialogState extends State<RoomFormDialog> {
     _numberController.dispose();
     _imageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      setState(() {
+        _selectedImage = File(image.path);
+      });
+      
+      // Mostrar instrucciones para subir a Drive
+      _showDriveInstructions();
+    }
+  }
+
+  void _showDriveInstructions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Subir imagen a Google Drive'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Para usar esta imagen:'),
+            const SizedBox(height: 10),
+            const Text('1. Abre Google Drive en tu navegador'),
+            const Text('2. Sube la imagen seleccionada a la carpeta:'),
+            const Text('   https://drive.google.com/drive/folders/1295Dv0VGK6BfLmt5AEj5bPFkdlcc_Miy'),
+            const SizedBox(height: 10),
+            const Text('3. Haz clic derecho en la imagen'),
+            const Text('4. Selecciona "Obtener enlace"'),
+            const Text('5. Pega el enlace en el campo de abajo'),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _imageController,
+              decoration: const InputDecoration(
+                labelText: 'Pega el enlace de Google Drive aquí',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImagePreview() {
+    if (_selectedImage != null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Imagen seleccionada'),
+          content: Image.file(_selectedImage!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _saveRoom() async {
@@ -468,19 +559,85 @@ class _RoomFormDialogState extends State<RoomFormDialog> {
                   return null;
                 },
               ),
+              
+              // Sección para imagen
+              const SizedBox(height: 16),
+              const Text(
+                'Imagen de la habitación:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              
+              // Botón para seleccionar imagen
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Seleccionar imagen del dispositivo'),
+              ),
+              
+              // Mostrar vista previa de imagen seleccionada
+              if (_selectedImage != null) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _showImagePreview,
+                  child: Container(
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.file(
+                      _selectedImage!,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Imagen seleccionada (toca para ver más grande)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+              const Text(
+                'Pega el enlace de Google Drive:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               TextFormField(
                 controller: _imageController,
                 decoration: const InputDecoration(
-                  labelText: 'URL de la imagen',
-                  hintText: 'https://drive.google.com/...',
+                  labelText: 'URL de Google Drive',
+                  hintText: 'https://drive.google.com/file/d/ABC123/view?usp=sharing',
+                  helperText: 'Después de seleccionar la imagen, súbela a Drive y pega el enlace aquí',
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa una URL de imagen';
+                    return 'Por favor ingresa una URL de Google Drive';
                   }
                   return null;
                 },
               ),
+              
+              // Vista previa de la imagen desde Drive
+              if (_imageController.text.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                const Text(
+                  'Vista previa desde Drive:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 5),
+                Image.network(
+                  convertirEnlaceDriveADirecto(_imageController.text),
+                  height: 100,
+                  width: 100,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.broken_image, size: 50),
+                ),
+              ],
+              
               SwitchListTile(
                 title: const Text('Disponible'),
                 value: _disponibilidad,
@@ -531,6 +688,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   final _imageController = TextEditingController();
   String _categoria = 'Bebida';
   bool _disponibilidad = true;
+  File? _selectedImage;
 
   final List<String> _categorias = [
     'Bebida',
@@ -559,6 +717,76 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     _stockController.dispose();
     _imageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      setState(() {
+        _selectedImage = File(image.path);
+      });
+      
+      // Mostrar instrucciones para subir a Drive
+      _showDriveInstructions();
+    }
+  }
+
+  void _showDriveInstructions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Subir imagen a Google Drive'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Para usar esta imagen:'),
+            const SizedBox(height: 10),
+            const Text('1. Abre Google Drive en tu navegador'),
+            const Text('2. Sube la imagen seleccionada a la carpeta:'),
+            const Text('   https://drive.google.com/drive/folders/1295Dv0VGK6BfLmt5AEj5bPFkdlcc_Miy'),
+            const SizedBox(height: 10),
+            const Text('3. Haz clic derecho en la imagen'),
+            const Text('4. Selecciona "Obtener enlace"'),
+            const Text('5. Pega el enlace en el campo de abajo'),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _imageController,
+              decoration: const InputDecoration(
+                labelText: 'Pega el enlace de Google Drive aquí',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImagePreview() {
+    if (_selectedImage != null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Imagen seleccionada'),
+          content: Image.file(_selectedImage!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _saveProduct() async {
@@ -662,19 +890,85 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   });
                 },
               ),
+              
+              // Sección para imagen
+              const SizedBox(height: 16),
+              const Text(
+                'Imagen del producto:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              
+              // Botón para seleccionar imagen
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Seleccionar imagen del dispositivo'),
+              ),
+              
+              // Mostrar vista previa de imagen seleccionada
+              if (_selectedImage != null) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _showImagePreview,
+                  child: Container(
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.file(
+                      _selectedImage!,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Imagen seleccionada (toca para ver más grande)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+              const Text(
+                'Pega el enlace de Google Drive:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               TextFormField(
                 controller: _imageController,
                 decoration: const InputDecoration(
-                  labelText: 'URL de la imagen',
-                  hintText: 'https://drive.google.com/...',
+                  labelText: 'URL de Google Drive',
+                  hintText: 'https://drive.google.com/file/d/ABC123/view?usp=sharing',
+                  helperText: 'Después de seleccionar la imagen, súbela a Drive y pega el enlace aquí',
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa una URL de imagen';
+                    return 'Por favor ingresa una URL de Google Drive';
                   }
                   return null;
                 },
               ),
+              
+              // Vista previa de la imagen desde Drive
+              if (_imageController.text.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                const Text(
+                  'Vista previa desde Drive:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 5),
+                Image.network(
+                  convertirEnlaceDriveADirecto(_imageController.text),
+                  height: 100,
+                  width: 100,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.broken_image, size: 50),
+                ),
+              ],
+              
               SwitchListTile(
                 title: const Text('Disponible'),
                 value: _disponibilidad,
